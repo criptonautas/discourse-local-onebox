@@ -68,24 +68,44 @@ function settle(ids) {
 }
 
 function flush() {
-  const ids = [...new Set([...waiting].map((aside) => aside.dataset.topic))]
+  // Latest drops muted categories (default_categories_muted, or the viewer's
+  // own) unless the request names that category, so ask once per category.
+  // The onebox's category badge already says which one.
+  const byCategory = new Map();
+  for (const aside of waiting) {
+    const id = aside.dataset.topic;
     // Only ids never asked for: the rest are cached or already in flight.
-    .filter((id) => !topics.has(id));
-  ids.forEach((id) => topics.set(id, null));
-
-  for (let i = 0; i < ids.length; i += PAGE) {
-    const chunk = ids.slice(i, i + PAGE);
-    ajax("/latest.json", { data: { topic_ids: chunk.join(",") } })
-      .then((result) => {
-        result.topic_list.topics.forEach((topic) =>
-          topics.set(String(topic.id), topic)
-        );
-      })
-      // Forget a failed chunk so a later render retries it; the oneboxes
-      // meanwhile stay as core rendered them.
-      .catch(() => chunk.forEach((id) => topics.delete(id)))
-      .finally(() => settle(chunk));
+    if (topics.has(id)) {
+      continue;
+    }
+    topics.set(id, null);
+    const category =
+      aside.querySelector("[data-category-id]")?.dataset.categoryId ?? "";
+    byCategory.set(category, [...(byCategory.get(category) ?? []), id]);
   }
+
+  for (const [category, ids] of byCategory) {
+    for (let i = 0; i < ids.length; i += PAGE) {
+      request(category, ids.slice(i, i + PAGE));
+    }
+  }
+}
+
+function request(category, chunk) {
+  const data = { topic_ids: chunk.join(",") };
+  if (category) {
+    data.category = category;
+  }
+  ajax("/latest.json", { data })
+    .then((result) => {
+      result.topic_list.topics.forEach((topic) =>
+        topics.set(String(topic.id), topic)
+      );
+    })
+    // Forget a failed chunk so a later render retries it; the oneboxes
+    // meanwhile stay as core rendered them.
+    .catch(() => chunk.forEach((id) => topics.delete(id)))
+    .finally(() => settle(chunk));
 }
 
 export default apiInitializer((api) => {

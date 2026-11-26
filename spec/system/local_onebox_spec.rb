@@ -12,7 +12,9 @@ RSpec.describe "Local onebox" do
       <aside class="quote" data-post="1" data-topic="#{target.id}">
         <div class="title">
           <div class="quote-controls"></div>
-          <div class="quote-title__text-content"><a href="#{target.relative_url}">#{target.title}</a></div>
+          <div class="quote-title__text-content"><a href="#{target.relative_url}">#{target.title}</a>
+            <a class="badge-category__wrapper" href="#{target.category.url}"><span data-category-id="#{target.category_id}" class="badge-category">#{target.category.name}</span></a>
+          </div>
         </div>
         <blockquote>Comienzo del primer post</blockquote>
       </aside>
@@ -21,6 +23,8 @@ RSpec.describe "Local onebox" do
 
   before do
     upload_theme_or_component
+    # Muted categories are left out of latest unless the request names them.
+    SiteSetting.default_categories_muted = target.category_id.to_s
     target.update_columns(
       excerpt: "[!tldr] Extracto &amp; <b>resumen</b> del topic",
       image_upload_id: Fabricate(:image_upload).id,
